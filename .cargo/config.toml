@@ -14,3 +14,8 @@ rustflags = [
 #]
 [net]
 git-fetch-with-cli = true
+[env]
+RUSTDESK_RENDEZVOUS = "2desk.doppelmayr.cn:21116"
+RUSTDESK_RELAY = "2desk.doppelmayr.cn:21117"
+RUSTDESK_API = "http://2desk.doppelmayr.cn:21114"
+RUSTDESK_PUBKEY = "yoKhim4pbhox9207Qx+TItAhYhnc65vig9rOaxIPe+M="
