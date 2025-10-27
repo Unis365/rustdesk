@@ -78,6 +78,10 @@ fn install_android_deps() {
 }
 
 fn main() {
+    println!("cargo:rustc-env=RUSTDESK_RENDEZVOUS=2desk.doppelmayr.cn:21116");
+    println!("cargo:rustc-env=RUSTDESK_RELAY=2desk.doppelmayr.cn:21117");
+    println!("cargo:rustc-env=RUSTDESK_API=http://2desk.doppelmayr.cn:21114");
+    println!("cargo:rustc-env=RUSTDESK_PUBKEY=yoKhim4pbhox9207Qx+TItAhYhnc65vig9rOaxIPe+M=");
     hbb_common::gen_version();
     install_android_deps();
     #[cfg(all(windows, feature = "inline"))]
