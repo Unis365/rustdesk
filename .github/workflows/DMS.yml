@@ -1,0 +1,103 @@
+name: Windows Build and Release
+
+env:
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  BUILD_ARTIFACTS: "build_artifacts"
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送v开头的tag时触发，如v1.0.0
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  build:
+    name: Build and Release Windows Installers
+    runs-on: windows-2022
+    
+    steps:
+    - name: Create artifacts directory
+      shell: bash
+      run: mkdir -p ${{ env.BUILD_ARTIFACTS }}
+      
+    - name: Checkout source code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: ${{ github.workspace }}/vcpkg
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+
+    - name: Install vcpkg dependencies
+      shell: cmd
+      run: |
+        set VCPKG_ROOT=%GITHUB_WORKSPACE%\vcpkg
+        %VCPKG_ROOT%\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-pc-windows-msvc
+
+    - name: Cache Rust dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Build release binary
+      run: cargo build --release --target=x86_64-pc-windows-msvc
+
+    - name: Generate Windows installers
+      shell: powershell
+      run: |
+        # 创建输出目录
+        mkdir -p target\x86_64-pc-windows-msvc\release\output
+        
+        # 复制可执行文件
+        Copy-Item "target\x86_64-pc-windows-msvc\release\rustdesk.exe" "target\x86_64-pc-windows-msvc\release\output\"
+        
+        # 创建便携版ZIP
+        $portableFiles = @(
+            "target\x86_64-pc-windows-msvc\release\rustdesk.exe"
+            # 添加其他必要文件
+        )
+        Compress-Archive -Path $portableFiles -DestinationPath "target\x86_64-pc-windows-msvc\release\output\rustdesk-portable.zip" -Force
+        
+        # 复制到artifacts目录
+        Copy-Item "target\x86_64-pc-windows-msvc\release\output\*" $env:BUILD_ARTIFACTS
+        
+        # 列出生成的文件
+        Write-Host "Generated files:"
+        Get-ChildItem $env:BUILD_ARTIFACTS
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+        files: |
+          ${{ env.BUILD_ARTIFACTS }}/*.exe
+          ${{ env.BUILD_ARTIFACTS }}/*.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Artifacts
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-installers
+        path: ${{ env.BUILD_ARTIFACTS }}/*
+        retention-days: 30
