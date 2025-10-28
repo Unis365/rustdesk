@@ -1,0 +1,97 @@
+name: Build Windows Portable
+
+env:
+  BUILD_ARTIFACTS: "portable_build"
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-portable:
+    name: Build Portable Windows Version
+    runs-on: windows-2022
+    
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install build tools
+      run: choco install nasm yasm -y
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-pc-windows-msvc
+
+    - name: Install vcpkg and dependencies
+      shell: powershell
+      run: |
+        git clone https://github.com/microsoft/vcpkg.git
+        cd vcpkg
+        .\bootstrap-vcpkg.bat
+        .\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+
+    - name: Build RustDesk
+      run: cargo build --release --target=x86_64-pc-windows-msvc
+
+    - name: Create portable package
+      shell: powershell
+      run: |
+        # 创建目录结构
+        $portableDir = "RustDesk-Portable"
+        Remove-Item $portableDir -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path "$portableDir\config" -Force
+        
+        # 复制可执行文件
+        Copy-Item "target\x86_64-pc-windows-msvc\release\rustdesk.exe" $portableDir
+        
+        # 创建配置文件 - 修改这里的服务器地址！
+        $configContent = @"
+[options]
+portable = true
+key = ""
+relay-server = "your-actual-server.com"    # 修改为您的服务器
+api-server = "your-actual-server.com"      # 修改为您的服务器
+"@
+        Set-Content -Path "$portableDir\config\RustDesk.toml" -Value $configContent
+        
+        # 创建便携版标识
+        New-Item -ItemType File -Path "$portableDir\portable" -Force
+        
+        # 创建ZIP包
+        $version = if ($env:GITHUB_REF -like "refs/tags/*") { 
+            $env:GITHUB_REF -replace "refs/tags/v", "" 
+        } else { 
+            "dev-$(Get-Date -Format 'yyyyMMdd-HHmm')" 
+        }
+        
+        $zipName = "RustDesk-Portable-$version-x64.zip"
+        Compress-Archive -Path "$portableDir\*" -DestinationPath $zipName -Force
+        
+        # 创建输出目录
+        New-Item -ItemType Directory -Path $env:BUILD_ARTIFACTS -Force
+        Move-Item $zipName $env:BUILD_ARTIFACTS
+        
+        Write-Host "Portable package created: $zipName"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: rustdesk-portable
+        path: ${{ env.BUILD_ARTIFACTS }}/*.zip
+        retention-days: 30
+
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: RustDesk Portable ${{ github.ref_name }}
+        files: ${{ env.BUILD_ARTIFACTS }}/*.zip
