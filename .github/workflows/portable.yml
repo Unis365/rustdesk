@@ -55,13 +55,30 @@ jobs:
 [options]
 portable = true
 key = ""
-relay-server = "your-actual-server.com"    # 修改为您的服务器
-api-server = "your-actual-server.com"      # 修改为您的服务器
+relay-server = "your-actual-server.com"
+api-server = "your-actual-server.com"
 "@
         Set-Content -Path "$portableDir\config\RustDesk.toml" -Value $configContent
         
         # 创建便携版标识
         New-Item -ItemType File -Path "$portableDir\portable" -Force
+        
+        # 创建自述文件
+        $readmeContent = @"
+RustDesk Portable Version
+=========================
+
+This is a portable version of RustDesk. 
+All settings and data are stored in the 'config' folder.
+
+To use your own server, edit the 'config\RustDesk.toml' file.
+
+Features:
+- No installation required
+- Settings travel with the application
+- Easy to backup and migrate
+"@
+        Set-Content -Path "$portableDir\README.txt" -Value $readmeContent
         
         # 创建ZIP包
         $version = if ($env:GITHUB_REF -like "refs/tags/*") { 
