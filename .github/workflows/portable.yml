@@ -50,21 +50,21 @@ jobs:
         # 复制可执行文件
         Copy-Item "target\x86_64-pc-windows-msvc\release\rustdesk.exe" $portableDir
         
-        # 创建配置文件 - 修改这里的服务器地址！
-        $configContent = @"
+        # 创建配置文件
+        $configContent = @'
 [options]
 portable = true
 key = ""
 relay-server = "your-actual-server.com"
 api-server = "your-actual-server.com"
-"@
+'@
         Set-Content -Path "$portableDir\config\RustDesk.toml" -Value $configContent
         
         # 创建便携版标识
         New-Item -ItemType File -Path "$portableDir\portable" -Force
         
         # 创建自述文件
-        $readmeContent = @"
+        $readmeContent = @'
 RustDesk Portable Version
 =========================
 
@@ -77,7 +77,7 @@ Features:
 - No installation required
 - Settings travel with the application
 - Easy to backup and migrate
-"@
+'@
         Set-Content -Path "$portableDir\README.txt" -Value $readmeContent
         
         # 创建ZIP包
